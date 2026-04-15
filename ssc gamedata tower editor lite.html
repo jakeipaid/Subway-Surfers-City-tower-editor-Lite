@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Subway Surfers City Gamedata Tower Editor: Decryptor & Encryptor Lite</title>
+    <style>
+        :root {
+            --neon-green: #00ff9c; --neon-purple: #bc13fe; --neon-blue: #00d2ff;
+            --bg: #0a0a0c; --panel: #16161d;
+        }
+        body { background: var(--bg); color: #fff; font-family: 'Segoe UI', sans-serif; margin: 0; padding: 10px; display: flex; flex-direction: column; align-items: center; }
+        .container { width: 100%; max-width: 500px; background: var(--panel); border-radius: 24px; padding: 20px; box-sizing: border-box; border: 1px solid #2a2a35; box-shadow: 0 10px 40px rgba(0,0,0,0.5); position: relative; }
+        h2 { text-align: center; color: var(--neon-green); letter-spacing: 3px; margin: 5px 0 20px 0; text-transform: uppercase; text-shadow: 0 0 10px var(--neon-green); font-size: 1.4rem; }
+        
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .download-zone { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; border-top: 1px solid #333; padding-top: 15px; }
+        
+        button { padding: 14px; border: none; border-radius: 12px; font-weight: 800; text-transform: uppercase; cursor: pointer; transition: 0.2s; font-size: 0.75rem; letter-spacing: 1px; }
+        .btn-l { background: #2a2a35; color: #fff; border: 1px solid #444; }
+        .btn-d { background: var(--neon-blue); color: #000; }
+        .btn-e { background: var(--neon-purple); color: #fff; }
+        
+        .btn-save-game { background: var(--neon-green); color: #000; box-shadow: 0 4px 12px rgba(0,255,156,0.2); }
+        .btn-save-zip { background: transparent; color: var(--neon-blue); border: 2px solid var(--neon-blue); }
+        
+        button:active { transform: translateY(2px); opacity: 0.8; }
+        
+        textarea { 
+            width: 100%; height: 550px; background: #000; color: var(--neon-green); 
+            border: 1px solid #2a2a35; border-radius: 16px; padding: 15px; 
+            box-sizing: border-box; font-family: 'Consolas', monospace; font-size: 13px; 
+            resize: none; outline: none; margin-top: 15px;
+        }
+        .enc-view { 
+            color: var(--neon-purple) !important; border-color: var(--neon-purple) !important; 
+            text-align: center; font-size: 1.4rem !important; padding-top: 120px !important; 
+            font-weight: bold; text-shadow: 0 0 10px var(--neon-purple);
+        }
+        #log { background: rgba(0,0,0,0.3); border-radius: 12px; padding: 10px; height: 50px; overflow-y: auto; font-size: 11px; color: #777; margin-top: 15px; border: 1px solid #222; }
+
+        .credits {
+            margin-top: 20px;
+            padding: 15px;
+            font-size: 11px;
+            color: #555;
+            text-align: center;
+            line-height: 1.6;
+            border-top: 1px solid #222;
+            width: 100%;
+            max-width: 500px;
+            background: #111;
+            border-radius: 12px;
+        }
+        .credits b { color: #888; }
+        .credits a { color: var(--neon-blue); text-decoration: none; font-weight: bold; }
+        .credits a:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Subway Surfers City Gamedata Tower Editor: Decryptor & Encryptor Lite</h2>
+    
+    <input type="file" id="fInput" style="display:none">
+    
+    <div class="grid">
+        <button class="btn-l" onclick="document.getElementById('fInput').click()">📁 Load Gamedata Tower File</button>
+        <button class="btn-d" onclick="doDecrypt()">🔓 Decrypt</button>
+        <button class="btn-e" onclick="doEncrypt()">🔒 Encrypt</button>
+        <button class="btn-l" style="background:#444" onclick="location.reload()">🔄 Reset</button>
+    </div>
+    
+    <div class="download-zone">
+        <button class="btn-save-game" onclick="downloadgamedata()">🚀 Save Gamedata File</button>
+        <button class="btn-save-zip" onclick="downloadZip()">🔑 Save Gamedata With Key</button>
+    </div>
+    
+    <div id="log">Ready for Tower File edit...</div>
+
+    <textarea id="edit" spellcheck="false">Please upload your gamedata tower file here.</textarea>
+</div>
+
+<div class="credits">
+    Deckey by <b>Mkx</b> 🗿💖🌸✨ <br>
+    Make Decryptor By <b>DiPYONViPs</b> 🌸💖🥰🗿<br>
+    <i> Edit tower file & enjoy!💖 </i>
+</div>
+
+<script>
+// Fallback Key (In case file doesn't have headers)
+const MASTER_KEY = {"ctr":[165,60,210,221,226,83,76,180,179,29,111,157,27,177,36,219],"key":[101,25,143,81,21,224,250,0,221,114,141,130,197,246,15,67]};
+
+const ZipEngine = {
+    crc32: (r)=>{
+        for(var a,o=[],c=0;c<256;c++){a=c;for(var f=0;f<8;f++)a=1&a?3988292384^a>>>1:a>>>1;o[c]=a}
+        for(var t=-1,n=0;n<r.length;n++)t=t>>>8^o[255&(t^r[n])];return(-1^t)>>>0
+    },
+    pack: (keyStr, fileData, fileName = "tower_decrypted.txt") => {
+        const enc = new TextEncoder();
+        const dataArray = (typeof fileData === "string") ? enc.encode(fileData) : new Uint8Array(fileData);
+        
+        const files = [
+            { n: "Key.txt", d: enc.encode(keyStr) }, 
+            { n: fileName, d: dataArray }
+        ];
+
+        let parts = [], cd = [], pos = 0;
+        files.forEach(f => {
+            const crc = ZipEngine.crc32(f.d), sz = f.d.length, nl = f.n.length;
+            const lfh = new Uint8Array(30 + nl);
+            lfh.set([80,75,3,4,20,0,0,0,0,0,0,0,0,0]);
+            new DataView(lfh.buffer).setUint32(14, crc, true);
+            new DataView(lfh.buffer).setUint32(18, sz, true);
+            new DataView(lfh.buffer).setUint32(22, sz, true);
+            new DataView(lfh.buffer).setUint16(26, nl, true);
+            lfh.set(enc.encode(f.n), 30);
+            parts.push(lfh, f.d);
+            
+            const cfh = new Uint8Array(46 + nl);
+            cfh.set([80,75,1,2,20,0,20,0,0,0,0,0,0,0]);
+            new DataView(cfh.buffer).setUint32(16, crc, true);
+            new DataView(cfh.buffer).setUint32(20, sz, true);
+            new DataView(cfh.buffer).setUint32(24, sz, true);
+            new DataView(cfh.buffer).setUint16(28, nl, true);
+            new DataView(cfh.buffer).setUint32(42, pos, true);
+            cfh.set(enc.encode(f.n), 46);
+            cd.push(cfh);
+            pos += lfh.length + sz;
+        });
+        
+        const cdB = new Blob(cd), eocd = new Uint8Array(22);
+        eocd.set([80,75,5,6,0,0,0,0,files.length,0,files.length,0]);
+        new DataView(eocd.buffer).setUint32(12, cdB.size, true);
+        new DataView(eocd.buffer).setUint32(16, pos, true);
+        return new Blob([...parts, cdB, eocd], {type:"application/zip"});
+    },
+    unpack: async (blob) => {
+        const buf = await blob.arrayBuffer();
+        const view = new DataView(buf);
+        const decoder = new TextDecoder();
+        let results = {};
+        for (let i = 0; i < buf.byteLength - 30; i++) {
+            if (view.getUint32(i, true) === 0x04034b50) {
+                const nameLen = view.getUint16(i + 26, true);
+                const extraLen = view.getUint16(i + 28, true);
+                const dataSize = view.getUint32(i + 18, true);
+                const fileName = decoder.decode(buf.slice(i + 30, i + 30 + nameLen));
+                const fileData = buf.slice(i + 30 + nameLen + extraLen, i + 30 + nameLen + extraLen + dataSize);
+                
+                if (fileName.includes("Key.txt")) {
+                    results.keys = decoder.decode(fileData);
+                } else {
+                    // Auto-detect JSON vs Encrypted Data inside ZIP based on first byte
+                    const checkByte = new Uint8Array(fileData)[0];
+                    if (checkByte === 123) { // 123 is '{' (JSON)
+                        results.json = decoder.decode(fileData);
+                    } else {
+                        results.encData = fileData;
+                    }
+                }
+            }
+        }
+        return results;
+    }
+};
+
+let gCTR, gKey, gEnc, gBuf, lastValidJSON = "";
+let gBaseFilename = "tower"; // Default fallback base filename
+
+// Function to extract base filename without tags
+function extractBaseName(filename) {
+    let name = filename;
+    name = name.replace(/\.zip$/i, '');
+    name = name.replace(/\.txt$/i, '');
+    name = name.replace(/_encrypted$/i, '');
+    name = name.replace(/_decrypted$/i, '');
+    name = name.replace(/_save_with_key$/i, '');
+    return name || "tower";
+}
+
+function print(m, c="#888") {
+    const l = document.getElementById('log');
+    l.innerHTML += `> <span style="color:${c}">${m}</span><br>`;
+    l.scrollTop = l.scrollHeight;
+}
+
+document.getElementById('fInput').onchange = async function(e) {
+    const f = e.target.files[0]; if (!f) return;
+    
+    // Extract base filename upon load to handle custom names dynamically
+    gBaseFilename = extractBaseName(f.name);
+    
+    const txtArea = document.getElementById('edit');
+    txtArea.classList.remove('enc-view');
+    
+    if (f.name.endsWith('.zip')) {
+        const content = await ZipEngine.unpack(f);
+        if (content.keys) {
+            const k = JSON.parse(content.keys);
+            gCTR = new Uint8Array(k.ctr); gKey = new Uint8Array(k.key);
+            
+            if (content.encData) {
+                gBuf = content.encData; 
+                txtArea.value = "ENCRYPTED TOWER DATA DETECTED";
+                txtArea.classList.add('enc-view');
+                print("Encrypted ZIP Loaded. Click Decrypt.");
+            } else if (content.json) {
+                txtArea.value = content.json; 
+                lastValidJSON = content.json;
+                print("Decrypted ZIP Loaded Successfully.");
+            }
+        }
+        return;
+    }
+
+    gBuf = await f.arrayBuffer();
+    const b = new Uint8Array(gBuf);
+    
+    // Auto Detect Algorithm: Check if first byte is 123 '{' (JSON array) or not.
+    // Bytes [0:16] = CTR, Bytes [16:32] = Key
+    if (b.length >= 32 && b[0] !== 123) {
+        gCTR = b.slice(0, 16); 
+        gKey = b.slice(16, 32);
+        txtArea.value = "ENCRYPTED TOWER DATA DETECTED";
+        txtArea.classList.add('enc-view');
+        print(`Encrypted file "${gBaseFilename}" loaded!`);
+    } else {
+        txtArea.value = new TextDecoder().decode(gBuf);
+        lastValidJSON = txtArea.value;
+        print(`Decrypted file "${gBaseFilename}" loaded!`);
+    }
+};
+
+async function doDecrypt() {
+    const txtArea = document.getElementById('edit');
+    if (!txtArea.classList.contains('enc-view')) return print("Already decrypted.", "orange");
+
+    if (!gKey) { gCTR = new Uint8Array(MASTER_KEY.ctr); gKey = new Uint8Array(MASTER_KEY.key); print("Using Master Key Fallback.", "orange"); }
+    
+    txtArea.classList.remove('enc-view');
+    try {
+        const k = await crypto.subtle.importKey("raw", gKey, {name:"AES-CTR"}, false, ["decrypt"]);
+        const d = await crypto.subtle.decrypt({name:"AES-CTR", counter:new Uint8Array(gCTR), length:64}, k, gBuf.slice(32));
+        let s = new TextDecoder().decode(d);
+        
+        // Smarter detection: checks for any carriage return or line feed inside the core string
+        const isPretty = /[\r\n]/.test(s.trim());
+        
+        try { 
+            let j = JSON.parse(s); 
+            
+            // Handle nested profile string if it exists to prevent escaped slashes
+            if (j.profile && typeof j.profile === 'string') {
+                try {
+                    j.profile = JSON.parse(j.profile);
+                } catch(e) {
+                    // Not a JSON string, leave as is
+                }
+            }
+            
+            // Stringify based on the regex detection
+            s = isPretty ? JSON.stringify(j, null, 2) : JSON.stringify(j); 
+            
+        } catch(e){
+            print("Notice: Data is not standard JSON, showing raw text.", "#555");
+        }
+        
+        txtArea.value = s; 
+        lastValidJSON = s;
+        print("Tower Decryption Complete! 🔓✨", "var(--neon-green)");
+    } catch(e) { print("Error Decrypting! File might be corrupted.", "red"); }
+}
+
+async function doEncrypt() {
+    const txtArea = document.getElementById('edit');
+    if (txtArea.classList.contains('enc-view')) return print("Already encrypted.", "orange");
+
+    if (!gKey) { gCTR = new Uint8Array(MASTER_KEY.ctr); gKey = new Uint8Array(MASTER_KEY.key); print("Using Master Key Fallback.", "orange"); }
+    
+    try {
+        let currentJSON = txtArea.value;
+        if (txtArea.classList.contains('enc-view')) currentJSON = lastValidJSON;
+        
+        // Match the smarter detection here too
+        const isPretty = /[\r\n]/.test(currentJSON.trim());
+        
+        let j = JSON.parse(currentJSON);
+        if(j.profile && typeof j.profile === 'object') j.profile = JSON.stringify(j.profile);
+        
+        // Apply formatting before encoding
+        const finalString = isPretty ? JSON.stringify(j, null, 2) : JSON.stringify(j);
+        const e = new TextEncoder().encode(finalString);
+        
+        const k = await crypto.subtle.importKey("raw", gKey, {name:"AES-CTR"}, false, ["encrypt"]);
+        gEnc = await crypto.subtle.encrypt({name:"AES-CTR", counter:new Uint8Array(gCTR), length:64}, k, e);
+        
+        gBuf = new Uint8Array(32 + gEnc.byteLength);
+        gBuf.set(new Uint8Array(gCTR), 0);
+        gBuf.set(new Uint8Array(gKey), 16);
+        gBuf.set(new Uint8Array(gEnc), 32);
+        
+        lastValidJSON = currentJSON;
+        txtArea.value = "ENCRYPTED TOWER DATA DETECTED";
+        txtArea.classList.add('enc-view');
+        print("Data Encrypted successfully! 🔒", "var(--neon-purple)");
+    } catch(e) { print("JSON Parse Error! Check for missing brackets.", "red"); }
+}
+
+async function downloadgamedata() {
+    const txtArea = document.getElementById('edit');
+    if (txtArea.classList.contains('enc-view')) {
+        const dataToSave = gEnc || (gBuf ? gBuf.slice(32) : null);
+        if (!dataToSave) return print("No encrypted data found!", "red");
+        
+        const out = new Uint8Array(32 + dataToSave.byteLength);
+        out.set(new Uint8Array(gCTR), 0); out.set(new Uint8Array(gKey), 16); out.set(new Uint8Array(dataToSave), 32);
+        dl(new Blob([out]), gBaseFilename + "_encrypted.txt");
+        print(`Downloaded ${gBaseFilename}_encrypted.txt`);
+    } else {
+        const jsonText = txtArea.value;
+        dl(new Blob([jsonText], {type: "text/plain"}), gBaseFilename + "_decrypted.txt");
+        print(`Downloaded ${gBaseFilename}_decrypted.txt`);
+    }
+}
+
+async function downloadZip() {
+    if (!gKey) { gCTR = new Uint8Array(MASTER_KEY.ctr); gKey = new Uint8Array(MASTER_KEY.key); }
+    const kStr = JSON.stringify({ctr: Array.from(gCTR), key: Array.from(gKey)});
+    const txtArea = document.getElementById('edit');
+    let data, name;
+
+    if (txtArea.classList.contains('enc-view')) {
+        const dataToSave = gEnc || (gBuf ? gBuf.slice(32) : null);
+        const out = new Uint8Array(32 + dataToSave.byteLength);
+        out.set(new Uint8Array(gCTR), 0); out.set(new Uint8Array(gKey), 16); out.set(new Uint8Array(dataToSave), 32);
+        data = out; name = gBaseFilename + "_encrypted.txt";
+    } else {
+        data = txtArea.value; name = gBaseFilename + "_decrypted.txt";
+    }
+
+    const zip = ZipEngine.pack(kStr, data, name);
+    dl(zip, gBaseFilename + "_save_with_key.zip");
+    print(`Downloaded ${gBaseFilename}_save_with_key.zip`);
+}
+
+function dl(b, n) { const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = n; a.click(); }
+</script>
+</body>
+</html>
